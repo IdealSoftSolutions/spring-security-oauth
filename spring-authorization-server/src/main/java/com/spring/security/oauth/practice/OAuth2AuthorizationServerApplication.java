@@ -1,4 +1,4 @@
-package com.baeldung;
+package com.spring.security.oauth.practice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
