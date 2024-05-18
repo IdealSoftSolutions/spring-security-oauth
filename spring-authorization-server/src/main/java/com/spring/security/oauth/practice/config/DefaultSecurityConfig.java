@@ -35,11 +35,16 @@ import org.springframework.security.oauth2.server.authorization.settings.ClientS
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.reactive.CorsWebFilter;
 
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Arrays;
 import java.util.UUID;
 
 @Configuration
@@ -50,15 +55,24 @@ public class DefaultSecurityConfig {
     @Order(Ordered.HIGHEST_PRECEDENCE)
     SecurityFilterChain webFilterChainForOAuth(HttpSecurity httpSecurity) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(httpSecurity);
-        httpSecurity.getConfigurer(OAuth2AuthorizationServerConfigurer.class).oidc(Customizer.withDefaults());    // Enable OpenID Connect 1.0
+        httpSecurity.cors(Customizer.withDefaults()).getConfigurer(OAuth2AuthorizationServerConfigurer.class).oidc(Customizer.withDefaults());    // Enable OpenID Connect 1.0
 
         httpSecurity.exceptionHandling(e -> e.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login")));
         return httpSecurity.build();
     }
-
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("POST"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
     @Bean
     SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(authorizeRequests -> authorizeRequests.anyRequest().authenticated()).formLogin(Customizer.withDefaults());
+        http.cors(Customizer.withDefaults()).authorizeHttpRequests(authorizeRequests -> authorizeRequests.anyRequest().authenticated()).formLogin(Customizer.withDefaults());
         return http.build();
     }
 
@@ -75,23 +89,14 @@ public class DefaultSecurityConfig {
 
     @Bean
     public RegisteredClientRepository registeredClientRepository() {
-        var registerClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId("public-client-react-app")
-                .clientSecret("secret")
-                .scope(OidcScopes.OPENID)
-                .scope(OidcScopes.PROFILE)
-                .redirectUri("http://localhost:3000/login")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantTypes(
-                        grantType -> {
-                            grantType.add(AuthorizationGrantType.CLIENT_CREDENTIALS);
-                            grantType.add(AuthorizationGrantType.AUTHORIZATION_CODE);
-                            grantType.add(AuthorizationGrantType.REFRESH_TOKEN);
+        var registerClient = RegisteredClient.withId(UUID.randomUUID().toString()).clientId("articles-client").clientSecret("secret").scope(OidcScopes.OPENID).scope(OidcScopes.PROFILE).redirectUris(uri -> {
+            uri.add("http://localhost:3000/callback");
+        }).clientAuthenticationMethod(ClientAuthenticationMethod.NONE).clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST).clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC).authorizationGrantTypes(grantType -> {
+            grantType.add(AuthorizationGrantType.CLIENT_CREDENTIALS);
+            grantType.add(AuthorizationGrantType.AUTHORIZATION_CODE);
+            grantType.add(AuthorizationGrantType.REFRESH_TOKEN);
 
-                        }
-                ).clientSettings(ClientSettings.builder().requireProofKey(true).build()).build();
+        }).clientSettings(ClientSettings.builder().requireProofKey(true).build()).build();
         return new InMemoryRegisteredClientRepository(registerClient);
     }
 
